@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
   <title>Рабочий стол диспетчера ВДГО</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=20260729-2">
   <script src="https://api.bitrix24.com/api/v1/"></script>
 </head>
 <body>
@@ -24,25 +24,15 @@
 
     <section class="toolbar panel">
       <label class="field search-field">
-        <span>Поиск</span>
-        <input id="searchInput" type="search" placeholder="ФИО, телефон, адрес, ID сделки">
+        <span>Поиск по всей CRM</span>
+        <input id="searchInput" type="search" placeholder="ФИО, телефон, адрес или ID сделки">
       </label>
-      <label class="field">
-        <span>Стадия</span>
-        <select id="stageFilter"><option value="">Все рабочие стадии</option></select>
-      </label>
-      <label class="field">
-        <span>Ответственный</span>
-        <select id="managerFilter"><option value="">Все диспетчеры</option></select>
-      </label>
+      <label class="field"><span>Стадия</span><select id="stageFilter"><option value="">Все стадии</option></select></label>
+      <label class="field"><span>Ответственный</span><select id="managerFilter"><option value="">Все ответственные</option></select></label>
       <label class="field">
         <span>Вид работ</span>
         <select id="workTypeFilter">
-          <option value="">Все</option>
-          <option value="10237">ВДГО</option>
-          <option value="10239">Ремонт</option>
-          <option value="10241">Авария</option>
-          <option value="10243">Юрлица</option>
+          <option value="">Все</option><option value="10237">ВДГО</option><option value="10239">Ремонт</option><option value="10241">Авария</option><option value="10243">Юрлица</option>
         </select>
       </label>
       <button id="newDealBtn" class="btn btn-primary toolbar-button" type="button">+ Новая заявка</button>
@@ -68,35 +58,17 @@
           <button class="quick-filter" data-filter="legal" type="button"><span>Отказ / недопуск</span><b>›</b></button>
           <button class="quick-filter" data-filter="manual" type="button"><span>Ручной разбор</span><b>›</b></button>
         </nav>
-        <div class="sidebar-note">
-          <strong>Правило работы</strong>
-          <p>После каждого разговора фиксируйте стадию и дату следующего действия. Сделка без следующего шага считается незавершённой.</p>
-        </div>
+        <div class="sidebar-note"><strong>Поиск</strong><p>Введите минимум 2 символа. Внутри Bitrix24 поиск выполняется по всей CRM, а не только по видимой очереди.</p></div>
       </aside>
 
       <section class="table-panel panel">
         <div class="panel-heading">
-          <div>
-            <div class="panel-title">Заявки и звонки</div>
-            <div id="resultSummary" class="muted">Загрузка данных…</div>
-          </div>
-          <div class="table-tools">
-            <button id="clearFiltersBtn" class="btn btn-ghost" type="button">Сбросить фильтры</button>
-          </div>
+          <div><div class="panel-title">Заявки и звонки</div><div id="resultSummary" class="muted">Загрузка данных…</div></div>
+          <button id="clearFiltersBtn" class="btn btn-ghost" type="button">Сбросить фильтры</button>
         </div>
         <div class="table-wrap">
           <table>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Клиент / заявка</th>
-                <th>Телефон</th>
-                <th>Адрес</th>
-                <th>Стадия</th>
-                <th>Ответственный</th>
-                <th>Следующее действие</th>
-              </tr>
-            </thead>
+            <thead><tr><th>ID</th><th>Клиент / заявка</th><th>Телефон</th><th>Адрес</th><th>Стадия</th><th>Слесарь</th><th>Стоимость</th><th>Оплата</th><th>Следующее действие</th></tr></thead>
             <tbody id="dealRows"></tbody>
           </table>
         </div>
@@ -104,10 +76,7 @@
       </section>
 
       <aside class="detail-panel panel">
-        <div class="panel-heading">
-          <div class="panel-title">Карточка клиента / объекта</div>
-          <button id="openDealBtn" class="icon-btn" type="button" title="Открыть сделку">↗</button>
-        </div>
+        <div class="panel-heading"><div class="panel-title">Карточка клиента / объекта</div><button id="openDealBtn" class="icon-btn" type="button" title="Открыть сделку">↗</button></div>
         <div id="detailEmpty" class="detail-empty">Выберите заявку в таблице.</div>
         <div id="detailContent" class="detail-content is-hidden">
           <div class="client-name" id="detailClient">—</div>
@@ -116,6 +85,10 @@
             <div><dt>Адрес</dt><dd id="detailAddress">—</dd></div>
             <div><dt>Стадия</dt><dd id="detailStage">—</dd></div>
             <div><dt>Ответственный</dt><dd id="detailManager">—</dd></div>
+            <div><dt>Слесарь</dt><dd id="detailTechnician">—</dd></div>
+            <div><dt>Стоимость</dt><dd id="detailAmount">—</dd></div>
+            <div><dt>Оплата</dt><dd id="detailPaymentStatus">—</dd></div>
+            <div><dt>Способ оплаты</dt><dd id="detailPaymentMethod">—</dd></div>
             <div><dt>Следующий контакт</dt><dd id="detailNextContact">—</dd></div>
             <div><dt>Следующее ТО</dt><dd id="detailNextTo">—</dd></div>
             <div><dt>Комментарий</dt><dd id="detailComment">—</dd></div>
@@ -125,43 +98,41 @@
             <button id="scheduleBtn" class="btn btn-primary" type="button">Назначить выезд</button>
             <button id="callbackBtn" class="btn btn-secondary" type="button">Поставить перезвон</button>
             <button id="noanswerBtn" class="btn btn-secondary" type="button">Недозвон</button>
-            <button id="printBtn" class="btn btn-secondary" type="button">Печать ЗН</button>
+            <button id="printBtn" class="btn btn-secondary" type="button">Печать комплекта</button>
             <button id="completeBtn" class="btn btn-success" type="button">ТО выполнено</button>
           </div>
-          <div class="object-links">
-            <a id="objectLink" href="#" target="_blank" rel="noopener">Открыть объект ВДГО</a>
-            <a id="contactLink" href="#" target="_blank" rel="noopener">Открыть контакт</a>
-          </div>
+          <div class="object-links"><a id="objectLink" href="#" target="_blank" rel="noopener">Открыть объект ВДГО</a><a id="contactLink" href="#" target="_blank" rel="noopener">Открыть контакт</a></div>
+          <section class="history-block">
+            <div class="history-heading"><span>История абонента</span><small id="historySummary">—</small></div>
+            <div id="historyRows" class="history-rows"></div>
+          </section>
         </div>
-
-        <section class="law-help">
-          <div class="subheading">Подсказка по закону</div>
-          <details><summary>Нужен ли договор на ТО?</summary><p>Работы выполняются на основании договора о техническом обслуживании. Перед ответом клиенту откройте внутренний правовой регламент.</p></details>
-          <details><summary>Когда фиксировать недопуск?</summary><p>Сразу после неудачного выезда: дата, способ уведомления, акт и следующий контрольный срок.</p></details>
-          <details><summary>Можно ли закрыть без результата?</summary><p>Нет. Укажите результат выезда либо причину провала и следующее действие.</p></details>
-        </section>
       </aside>
     </main>
   </div>
 
   <dialog id="scheduleDialog">
     <form method="dialog" id="scheduleForm" class="dialog-form">
-      <div class="dialog-heading">
-        <h2>Назначить выезд</h2>
-        <button class="icon-btn" value="cancel" aria-label="Закрыть">×</button>
-      </div>
+      <div class="dialog-heading"><h2>Назначить выезд</h2><button class="icon-btn" value="cancel" aria-label="Закрыть">×</button></div>
       <label class="field"><span>Выездной сотрудник</span><select id="technicianSelect" required></select></label>
       <label class="field"><span>Дата и время</span><input id="visitDateTime" type="datetime-local" required></label>
       <label class="field"><span>Комментарий диспетчера</span><textarea id="visitComment" rows="4" placeholder="Что нужно сделать, особенности доступа"></textarea></label>
-      <div class="dialog-actions">
-        <button class="btn btn-secondary" value="cancel" type="button" id="cancelScheduleBtn">Отмена</button>
-        <button class="btn btn-primary" value="default" type="submit">Сохранить</button>
-      </div>
+      <div class="dialog-actions"><button class="btn btn-secondary" value="cancel" type="button" id="cancelScheduleBtn">Отмена</button><button class="btn btn-primary" value="default" type="submit">Сохранить</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="printDialog">
+    <form method="dialog" id="printForm" class="dialog-form">
+      <div class="dialog-heading"><h2>Печать комплекта</h2><button class="icon-btn" value="cancel" aria-label="Закрыть">×</button></div>
+      <p class="dialog-note">Выберите документы. Печатные формы тестовые; утверждённые шаблоны будут подключены после согласования.</p>
+      <label class="check-field"><input id="printOrderCheck" type="checkbox" checked> Заказ-наряд</label>
+      <label class="check-field"><input id="printActCheck" type="checkbox" checked> Акт выполненных работ</label>
+      <label class="check-field"><input id="printInvoiceCheck" type="checkbox" checked> Сведения о расчёте</label>
+      <div class="dialog-actions"><button class="btn btn-secondary" value="cancel" type="button" id="cancelPrintBtn">Отмена</button><button class="btn btn-primary" value="default" type="submit">Открыть печать</button></div>
     </form>
   </dialog>
 
   <div id="toast" class="toast is-hidden" role="status"></div>
-  <script src="app.js"></script>
-  <script src="search-fix.js"></script>
+  <script src="app.js?v=20260729-2"></script>
 </body>
 </html>
