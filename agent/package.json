@@ -5,5 +5,8 @@
   "type": "module",
   "engines": {"node": ">=20"},
   "scripts": {"start": "node src/index.js"},
-  "dependencies": {"express": "^5.1.0"}
+  "dependencies": {
+    "@google-cloud/firestore": "^7.11.0",
+    "express": "^5.1.0"
+  }
 }
