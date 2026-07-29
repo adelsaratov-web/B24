@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Установка рабочего стола диспетчера ВДГО</title>
+  <script src="https://api.bitrix24.com/api/v1/"></script>
+  <style>
+    body{margin:0;background:#eef1f5;color:#202735;font:15px/1.45 Arial,sans-serif}
+    .box{max-width:720px;margin:40px auto;background:#fff;border:1px solid #d9dee7;border-radius:10px;padding:28px;box-shadow:0 8px 30px rgba(20,33,55,.09)}
+    h1{margin:0 0 12px;font-size:24px}.note{color:#667085;margin-bottom:22px}
+    button{border:0;border-radius:6px;background:#1976d2;color:#fff;padding:11px 18px;font-weight:700;cursor:pointer}
+    button:disabled{opacity:.55;cursor:default}.ok{color:#237a36;font-weight:700}.err{color:#a52d2d;font-weight:700}
+  </style>
+</head>
+<body>
+  <main class="box">
+    <h1>Рабочий стол диспетчера ВДГО</h1>
+    <p class="note">Нажмите кнопку один раз. Bitrix24 завершит установку и добавит приложение в левое меню портала.</p>
+    <button id="finishBtn" type="button" disabled>Завершить установку</button>
+    <p id="status">Подключение к Bitrix24…</p>
+  </main>
+  <script>
+    const button=document.getElementById('finishBtn');
+    const status=document.getElementById('status');
+    if(!window.BX24){status.textContent='Страница должна быть открыта внутри Bitrix24.';status.className='err';}
+    else BX24.init(function(){
+      button.disabled=false;
+      status.textContent='Готово к установке.';
+      button.onclick=function(){
+        button.disabled=true;
+        status.textContent='Завершаем установку…';
+        try{
+          BX24.installFinish();
+          status.textContent='Установка завершена. Закройте это окно и откройте приложение в левом меню.';
+          status.className='ok';
+        }catch(e){
+          button.disabled=false;
+          status.textContent='Ошибка: '+(e&&e.message?e.message:String(e));
+          status.className='err';
+        }
+      };
+    });
+  </script>
+</body>
+</html>
