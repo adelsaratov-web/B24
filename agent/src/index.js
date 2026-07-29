@@ -40,11 +40,7 @@ async function openaiResponse(input) {
       authorization: `Bearer ${OPENAI_API_KEY}`,
       'content-type': 'application/json'
     },
-    body: JSON.stringify({
-      model: OPENAI_MODEL,
-      input,
-      max_output_tokens: 800
-    })
+    body: JSON.stringify({ model: OPENAI_MODEL, input, max_output_tokens: 800 })
   });
   const data = await response.json();
   if (!response.ok) throw new Error(`OpenAI: ${data?.error?.message || response.status}`);
@@ -53,7 +49,7 @@ async function openaiResponse(input) {
 
 function classifyRisk(text) {
   const value = text.toLowerCase();
-  const emergency = ['запах газа','утечк','авари','взрыв','пожар','травм','несчастн','полици','прокуратур','суд','персональн', 'хищен'];
+  const emergency = ['запах газа','утечк','авари','взрыв','пожар','травм','несчастн','полици','прокуратур','суд','персональн','хищен'];
   const approval = ['зарплат','увол','принять на работу','договор','тариф','оплатить','расход','перевести деньги','признать долг','удалить'];
   if (emergency.some(word => value.includes(word))) return 'D';
   if (approval.some(word => value.includes(word))) return 'C';
@@ -61,13 +57,20 @@ function classifyRisk(text) {
 }
 
 function promptFor(message, risk) {
-  return `Ты — автоматизированный помощник руководителя группы компаний transgaz64 в Bitrix24.\n\nПравила:\n- отвечай по-русски, деловым и понятным языком;\n- не изображай личное участие директора;\n- не утверждай финансовые, кадровые, юридические или аварийные решения;\n- для ошибки интерфейса запроси номер сделки/объекта, действие, ожидаемый и фактический результат, скриншот;\n- не сообщай, что задача выполнена, если это не подтверждено данными;\n- ответ не длиннее 1200 знаков.\n\nУровень риска: ${risk}.\nСообщение сотрудника: ${message}`;
+  return `Ты — автоматизированный помощник руководителя группы компаний transgaz64 в Bitrix24.\n\nПравила:\n- отвечай по-русски, деловым и понятным языком;\n- не изображай личное участие директора;\n- не утверждай финансовые, кадровые, юридические или аварийные решения;\n- для ошибки интерфейса запроси номер сделки/объекта, действие, ожидаемый и фактический результат, скриншот;\n- не сообщай, что задача выполнена, если это не подтверждено данными;\n- не повторяй уже заданные вопросы;\n- ответ не длиннее 900 знаков.\n\nУровень риска: ${risk}.\nСообщение сотрудника: ${message}`;
 }
 
-async function wasProcessed(dialogId, messageId) {
-  const ref = firestore.collection('bitrix_agent_messages').doc(`${dialogId}_${messageId}`);
-  const snap = await ref.get();
-  return snap.exists;
+function cursorRef(dialogId) {
+  return firestore.collection('bitrix_agent_cursors').doc(dialogId);
+}
+
+async function getCursor(dialogId) {
+  const snap = await cursorRef(dialogId).get();
+  return snap.exists ? Number(snap.data()?.lastMessageId || 0) : null;
+}
+
+async function setCursor(dialogId, messageId) {
+  await cursorRef(dialogId).set({ lastMessageId: Number(messageId), updatedAt: new Date().toISOString() }, { merge: true });
 }
 
 async function markProcessed(dialogId, messageId, record) {
@@ -87,29 +90,44 @@ async function escalate(dialogId, message, risk) {
 async function processDialog(dialogId) {
   const result = await bitrix('im.dialog.messages.get', { DIALOG_ID: dialogId, LIMIT: 30 });
   const messages = Array.isArray(result?.messages) ? result.messages : Array.isArray(result) ? result : [];
-  let processed = 0;
+  const normalized = messages
+    .map(item => ({
+      id: Number(item.id || item.ID || 0),
+      authorId: String(item.author_id || item.AUTHOR_ID || ''),
+      text: String(item.text || item.MESSAGE || '').trim()
+    }))
+    .filter(item => item.id > 0)
+    .sort((a, b) => a.id - b.id);
 
-  for (const item of messages.slice().reverse()) {
-    const id = item.id || item.ID;
-    const authorId = String(item.author_id || item.AUTHOR_ID || '');
-    const text = String(item.text || item.MESSAGE || '').trim();
-    if (!id || !text || authorId === '1' || await wasProcessed(dialogId, id)) continue;
+  if (!normalized.length) return { processed: 0, state: 'empty' };
 
-    const risk = classifyRisk(text);
-    if (risk === 'C' || risk === 'D') {
-      await escalate(dialogId, text, risk);
-      await markProcessed(dialogId, id, { authorId, text, risk, action: 'escalated' });
-      processed += 1;
-      continue;
-    }
+  const latestId = normalized.at(-1).id;
+  const cursor = await getCursor(dialogId);
 
-    const answer = await openaiResponse(promptFor(text, risk));
+  if (cursor === null) {
+    await setCursor(dialogId, latestId);
+    return { processed: 0, state: 'initialized', cursor: latestId };
+  }
+
+  const candidate = normalized.find(item => item.id > cursor && item.authorId !== '1' && item.text);
+  if (!candidate) {
+    if (latestId > cursor) await setCursor(dialogId, latestId);
+    return { processed: 0, state: 'no_new_employee_message', cursor: latestId };
+  }
+
+  const risk = classifyRisk(candidate.text);
+  if (risk === 'C' || risk === 'D') {
+    await escalate(dialogId, candidate.text, risk);
+    await markProcessed(dialogId, candidate.id, { authorId: candidate.authorId, text: candidate.text, risk, action: 'escalated' });
+  } else {
+    const answer = await openaiResponse(promptFor(candidate.text, risk));
     if (!answer.trim()) throw new Error('Model returned an empty answer');
     await bitrix('im.message.add', { DIALOG_ID: dialogId, MESSAGE: answer.trim() + BOT_SIGNATURE });
-    await markProcessed(dialogId, id, { authorId, text, risk, action: 'answered', answer: answer.trim() });
-    processed += 1;
+    await markProcessed(dialogId, candidate.id, { authorId: candidate.authorId, text: candidate.text, risk, action: 'answered', answer: answer.trim() });
   }
-  return processed;
+
+  await setCursor(dialogId, candidate.id);
+  return { processed: 1, state: risk === 'C' || risk === 'D' ? 'escalated' : 'answered', messageId: candidate.id };
 }
 
 function authorized(req) {
@@ -125,7 +143,7 @@ app.post('/poll', async (req, res) => {
     if (!authorized(req)) return res.status(401).json({ ok: false, error: 'unauthorized' });
     const report = {};
     for (const dialogId of ALLOWED_DIALOGS) report[dialogId] = await processDialog(dialogId);
-    res.json({ ok: true, processed: report });
+    res.json({ ok: true, report });
   } catch (error) {
     console.error(error);
     res.status(500).json({ ok: false, error: error.message });
