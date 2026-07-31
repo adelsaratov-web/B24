@@ -1,0 +1,29 @@
+name: Agent CI
+
+on:
+  pull_request:
+    paths:
+      - 'agent/**'
+      - '.github/workflows/agent-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'agent/**'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: agent
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install
+      - run: node --check src/index.js
+      - run: docker build -t bitrix-virtual-director:test .
