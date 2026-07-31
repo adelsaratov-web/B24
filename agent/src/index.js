@@ -40,7 +40,7 @@ async function openaiResponse(input) {
       authorization: `Bearer ${OPENAI_API_KEY}`,
       'content-type': 'application/json'
     },
-    body: JSON.stringify({ model: OPENAI_MODEL, input, max_output_tokens: 800 })
+    body: JSON.stringify({ model: OPENAI_MODEL, input, max_output_tokens: 400 })
   });
   const data = await response.json();
   if (!response.ok) throw new Error(`OpenAI: ${data?.error?.message || response.status}`);
@@ -56,8 +56,90 @@ function classifyRisk(text) {
   return 'A';
 }
 
-function promptFor(message, risk) {
-  return `Ты — автоматизированный помощник руководителя группы компаний transgaz64 в Bitrix24.\n\nПравила:\n- отвечай по-русски, деловым и понятным языком;\n- не изображай личное участие директора;\n- не утверждай финансовые, кадровые, юридические или аварийные решения;\n- для ошибки интерфейса запроси номер сделки/объекта, действие, ожидаемый и фактический результат, скриншот;\n- не сообщай, что задача выполнена, если это не подтверждено данными;\n- не повторяй уже заданные вопросы;\n- ответ не длиннее 900 знаков.\n\nУровень риска: ${risk}.\nСообщение сотрудника: ${message}`;
+function extractDealId(text) {
+  const patterns = [
+    /(?:сделк(?:а|е|и|у|ой)|deal)\s*[№#:]?\s*(\d{3,})/iu,
+    /\/crm\/deal\/details\/(\d+)\//iu
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) return match[1];
+  }
+  return null;
+}
+
+function maskPhone(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (digits.length < 4) return 'указан';
+  return `***${digits.slice(-4)}`;
+}
+
+async function crmContextFor(message) {
+  const dealId = extractDealId(message);
+  if (!dealId) return 'Номер сделки в сообщении не найден.';
+
+  try {
+    const deal = await bitrix('crm.deal.get', { id: dealId });
+    let contactSummary = 'Контакт не привязан.';
+
+    if (deal?.CONTACT_ID && String(deal.CONTACT_ID) !== '0') {
+      try {
+        const contact = await bitrix('crm.contact.get', { id: deal.CONTACT_ID });
+        const phones = Array.isArray(contact?.PHONE) ? contact.PHONE.filter(item => item?.VALUE) : [];
+        contactSummary = phones.length
+          ? `Контакт ${deal.CONTACT_ID}; телефонов: ${phones.length}; номера: ${phones.map(item => maskPhone(item.VALUE)).join(', ')}.`
+          : `Контакт ${deal.CONTACT_ID}; телефон в карточке не заполнен.`;
+      } catch (error) {
+        contactSummary = `Контакт ${deal.CONTACT_ID}; карточку контакта получить не удалось: ${error.message}`;
+      }
+    }
+
+    return [
+      `Сделка ${deal.ID}: ${deal.TITLE || 'без названия'}.`,
+      `Ответственный: ${deal.ASSIGNED_BY_ID || 'не указан'}; стадия: ${deal.STAGE_ID || 'не указана'}; закрыта: ${deal.CLOSED || 'неизвестно'}.`,
+      `Объект: ${deal.UF_CRM_DEAL_VDGO_OBJECT || 'не указан'}; адрес: ${deal.UF_CRM_1716883559988 || 'не указан'}.`,
+      contactSummary,
+      `Изменена: ${deal.DATE_MODIFY || 'неизвестно'}.`
+    ].join(' ');
+  } catch (error) {
+    return `Сделка ${dealId} указана, но CRM-проверка не выполнена: ${error.message}`;
+  }
+}
+
+function conversationContext(messages, candidateId) {
+  return messages
+    .filter(item => item.id <= candidateId && item.text)
+    .slice(-8)
+    .map(item => `${item.authorId === '1' ? 'Помощник/руководитель' : `Сотрудник ${item.authorId}`}: ${item.text}`)
+    .join('\n');
+}
+
+function promptFor(message, risk, history, crmContext) {
+  return `Ты — автоматизированный помощник руководителя группы компаний transgaz64 в Bitrix24.
+
+Правила:
+- отвечай по-русски, деловым и понятным языком;
+- отвечай только на последнее сообщение с учётом предыдущих реплик;
+- сначала используй уже известные данные и результат проверки CRM;
+- не спрашивай повторно номер сделки, действие или факт, которые уже есть в истории;
+- если нужны уточнения, задай не более двух действительно недостающих вопросов;
+- если сотрудник сообщил, что проблема исчезла или всё работает, кратко зафиксируй результат и попроси сообщить только при повторении;
+- не изображай личное участие директора;
+- не утверждай финансовые, кадровые, юридические или аварийные решения;
+- не обещай передачу в ИТ-поддержку, если обращение фактически не создано;
+- не сообщай, что задача выполнена, если это не подтверждено;
+- ответ должен содержать 2–5 коротких предложений и быть не длиннее 600 знаков.
+
+Уровень риска: ${risk}.
+
+Последние сообщения:
+${history || 'Контекст отсутствует.'}
+
+Проверка CRM:
+${crmContext}
+
+Последнее сообщение сотрудника:
+${message}`;
 }
 
 function cursorRef(dialogId) {
@@ -120,10 +202,19 @@ async function processDialog(dialogId) {
     await escalate(dialogId, candidate.text, risk);
     await markProcessed(dialogId, candidate.id, { authorId: candidate.authorId, text: candidate.text, risk, action: 'escalated' });
   } else {
-    const answer = await openaiResponse(promptFor(candidate.text, risk));
+    const history = conversationContext(normalized, candidate.id);
+    const crmContext = await crmContextFor(`${history}\n${candidate.text}`);
+    const answer = await openaiResponse(promptFor(candidate.text, risk, history, crmContext));
     if (!answer.trim()) throw new Error('Model returned an empty answer');
     await bitrix('im.message.add', { DIALOG_ID: dialogId, MESSAGE: answer.trim() + BOT_SIGNATURE });
-    await markProcessed(dialogId, candidate.id, { authorId: candidate.authorId, text: candidate.text, risk, action: 'answered', answer: answer.trim() });
+    await markProcessed(dialogId, candidate.id, {
+      authorId: candidate.authorId,
+      text: candidate.text,
+      risk,
+      action: 'answered',
+      answer: answer.trim(),
+      crmContext
+    });
   }
 
   await setCursor(dialogId, candidate.id);
