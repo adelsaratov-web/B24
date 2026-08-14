@@ -1,0 +1,59 @@
+name: GAR FIAS read-only region 64
+
+on:
+  push:
+    branches:
+      - gar-fias-readonly-20260815
+    paths:
+      - 'tools/gar_fias/**'
+      - '.github/workflows/gar-fias-readonly.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUNBUFFERED: '1'
+
+jobs:
+  extract-region64:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: python -m pip install --disable-pip-version-check requests remotezip
+
+      - name: Extract current official GAR region 64
+        run: python tools/gar_fias/extract_region64.py
+
+      - name: Show metadata and counts
+        run: |
+          cat gar_region64/fias_last_download_info.json
+          python - <<'PY'
+          import csv
+          from collections import Counter
+          p='gar_region64/gar_region64_houses_apartments.csv'
+          c=Counter()
+          total=0
+          with open(p, encoding='utf-8-sig', newline='') as f:
+              for row in csv.DictReader(f):
+                  total += 1
+                  c[row['kind']] += 1
+          print({'total': total, 'kinds': dict(c)})
+          PY
+
+      - name: Upload public GAR region artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gar-region64-readonly
+          path: gar_region64/
+          if-no-files-found: error
+          retention-days: 7
