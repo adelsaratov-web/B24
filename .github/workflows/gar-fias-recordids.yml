@@ -1,0 +1,61 @@
+name: GAR FIAS region64 record IDs read-only
+
+on:
+  push:
+    branches:
+      - gar-fias-readonly-20260815
+    paths:
+      - '.github/workflows/gar-fias-recordids.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  recordids:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: python -m pip install --disable-pip-version-check remotezip
+      - name: Extract public GAR record IDs for region 64
+        run: |
+          python - <<'PY'
+          import csv, io, pathlib, xml.etree.ElementTree as ET
+          from remotezip import RemoteZip
+          url='https://fias-file.nalog.ru/opendata/7707329152-fias/data-11082026-structure-20191024.zip'
+          out=pathlib.Path('gar_recordids'); out.mkdir()
+          target=[]
+          with RemoteZip(url, timeout=180) as rz:
+              for i in rz.infolist():
+                  n=i.filename.replace('\\','/')
+                  b=n.rsplit('/',1)[-1].upper()
+                  if not n.startswith('64/') or not b.endswith('.XML'): continue
+                  if b.startswith('AS_HOUSES_') and not b.startswith('AS_HOUSES_PARAMS_'): target.append(i.filename)
+                  if b.startswith('AS_APARTMENTS_') and not b.startswith('AS_APARTMENTS_PARAMS_'): target.append(i.filename)
+              p=out/'gar_region64_recordids.csv'
+              fields=['source','kind','id','objectid','objectguid','changeid','previd','nextid','isactual','isactive','number','startdate','enddate']
+              with p.open('w',encoding='utf-8-sig',newline='') as f:
+                  w=csv.DictWriter(f,fieldnames=fields); w.writeheader()
+                  for name in target:
+                      print('extracting',name)
+                      with rz.open(name) as xf:
+                          for _,e in ET.iterparse(xf,events=('end',)):
+                              tag=e.tag.rsplit('}',1)[-1]
+                              if tag in ('HOUSE','APARTMENT'):
+                                  a=e.attrib
+                                  w.writerow({'source':name,'kind':tag,'id':a.get('ID',''),'objectid':a.get('OBJECTID',''),'objectguid':a.get('OBJECTGUID',''),'changeid':a.get('CHANGEID',''),'previd':a.get('PREVID',''),'nextid':a.get('NEXTID',''),'isactual':a.get('ISACTUAL',''),'isactive':a.get('ISACTIVE',''),'number':a.get('HOUSENUM',a.get('NUMBER','')),'startdate':a.get('STARTDATE',''),'enddate':a.get('ENDDATE','')})
+                                  e.clear()
+              print('files',target,'bytes',p.stat().st_size)
+          PY
+      - name: Upload public record ID artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gar-region64-recordids
+          path: gar_recordids/
+          if-no-files-found: error
+          retention-days: 7
