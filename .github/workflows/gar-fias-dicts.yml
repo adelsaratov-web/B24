@@ -1,0 +1,51 @@
+name: GAR FIAS dictionaries read-only
+
+on:
+  push:
+    branches:
+      - gar-fias-readonly-20260815
+    paths:
+      - '.github/workflows/gar-fias-dicts.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dictionaries:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependency
+        run: python -m pip install --disable-pip-version-check remotezip
+
+      - name: Extract official house type dictionary
+        run: |
+          python - <<'PY'
+          from remotezip import RemoteZip
+          import pathlib
+          url='https://fias-file.nalog.ru/opendata/7707329152-fias/data-11082026-structure-20191024.zip'
+          out=pathlib.Path('gar_dicts'); out.mkdir()
+          with RemoteZip(url, timeout=180) as rz:
+              names=[i.filename for i in rz.infolist() if 'HOUSE_TYPES' in i.filename.upper() or 'OBJECT_LEVELS' in i.filename.upper()]
+              print('FILES', names)
+              for name in names:
+                  data=rz.read(name)
+                  p=out / pathlib.Path(name).name
+                  p.write_bytes(data)
+                  print('---',name,'---')
+                  print(data.decode('utf-8-sig', errors='replace')[:20000])
+          PY
+
+      - name: Upload dictionaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: gar-fias-dictionaries
+          path: gar_dicts/
+          if-no-files-found: error
+          retention-days: 7
