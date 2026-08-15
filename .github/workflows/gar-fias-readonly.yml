@@ -34,9 +34,13 @@ jobs:
       - name: Extract current official GAR region 64
         run: python tools/gar_fias/extract_region64.py
 
+      - name: Extract active address hierarchy region 64
+        run: python tools/gar_fias/extract_region64_hierarchy.py
+
       - name: Show metadata and counts
         run: |
           cat gar_region64/fias_last_download_info.json
+          cat gar_region64/hierarchy_manifest.json
           python - <<'PY'
           import csv
           from collections import Counter
