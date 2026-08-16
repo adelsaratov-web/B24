@@ -1,0 +1,19 @@
+{
+  "name": "ptg-diadoc-bitrix-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server-secure.js"
+  },
+  "dependencies": {
+    "@google-cloud/secret-manager": "^5.6.0",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2"
+  }
+}
