@@ -6,31 +6,36 @@
   <title>Диадок · ООО «Покровсктрансгаз»</title>
   <script src="https://api.bitrix24.com/api/v1/"></script>
   <style>
-    :root{font-family:Arial,sans-serif;color:#1f2937;background:#eef1f5}*{box-sizing:border-box}body{margin:0}.shell{max-width:1500px;margin:0 auto;padding:20px}.top{display:flex;gap:16px;align-items:center;justify-content:space-between;margin-bottom:16px}.top h1{margin:0;font-size:24px}.muted{color:#667085}.panel{background:#fff;border:1px solid #d9dee7;border-radius:10px;padding:16px;margin-bottom:14px}.row{display:flex;gap:10px;align-items:end;flex-wrap:wrap}.field{display:flex;flex-direction:column;gap:5px;min-width:170px}.field input,.field select{padding:9px;border:1px solid #cfd6df;border-radius:6px;background:#fff}.btn{border:0;border-radius:6px;padding:10px 15px;font-weight:700;cursor:pointer}.btn-primary{background:#1976d2;color:#fff}.btn-secondary{background:#e9eef6;color:#1f2937}.badge{padding:7px 10px;border-radius:999px;background:#fff3cd;color:#725a00;font-weight:700}.badge.ok{background:#e8f5e9;color:#237a36}.badge.err{background:#fdecec;color:#a52d2d}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:9px 8px;border-bottom:1px solid #edf0f4;text-align:left;white-space:nowrap}th{position:sticky;top:0;background:#f8fafc}.dir{font-weight:700}.dir.in{color:#237a36}.dir.out{color:#1b65a7}.empty{padding:30px;text-align:center;color:#667085}.actions{display:flex;gap:8px}.note{font-size:13px;color:#667085}.danger-note{border-left:4px solid #1976d2;padding-left:10px}.link{color:#1976d2;text-decoration:none}.is-hidden{display:none!important}
+    :root{font-family:Arial,sans-serif;color:#1f2937;background:#eef1f5}*{box-sizing:border-box}body{margin:0}.shell{max-width:1500px;margin:0 auto;padding:20px}.top{display:flex;gap:16px;align-items:center;justify-content:space-between;margin-bottom:16px}.top h1{margin:0;font-size:24px}.muted{color:#667085}.panel{background:#fff;border:1px solid #d9dee7;border-radius:10px;padding:16px;margin-bottom:14px}.row{display:flex;gap:10px;align-items:end;flex-wrap:wrap}.field{display:flex;flex-direction:column;gap:5px;min-width:170px}.field input,.field select{padding:9px;border:1px solid #cfd6df;border-radius:6px;background:#fff}.wide{min-width:340px}.btn{border:0;border-radius:6px;padding:10px 15px;font-weight:700;cursor:pointer}.btn:disabled{opacity:.5;cursor:default}.btn-primary{background:#1976d2;color:#fff}.btn-secondary{background:#e9eef6;color:#1f2937}.badge{padding:7px 10px;border-radius:999px;background:#fff3cd;color:#725a00;font-weight:700}.badge.ok{background:#e8f5e9;color:#237a36}.badge.err{background:#fdecec;color:#a52d2d}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:9px 8px;border-bottom:1px solid #edf0f4;text-align:left;white-space:nowrap}th{position:sticky;top:0;background:#f8fafc}.dir{font-weight:700}.dir.in{color:#237a36}.dir.out{color:#1b65a7}.empty{padding:30px;text-align:center;color:#667085}.actions{display:flex;gap:8px}.note{font-size:13px;color:#667085}.info-note{border-left:4px solid #1976d2;padding-left:10px}.link{color:#1976d2;text-decoration:none}.is-hidden{display:none!important}
   </style>
 </head>
 <body>
   <main class="shell">
     <header class="top">
-      <div>
-        <div class="muted">ООО «Покровсктрансгаз» · Bitrix24</div>
-        <h1>Диадок · документы и экономический архив</h1>
-      </div>
-      <div class="actions">
-        <a class="btn btn-secondary link" href="./">← Рабочий стол</a>
-        <span id="statusBadge" class="badge">Проверка…</span>
-      </div>
+      <div><div class="muted">ООО «Покровсктрансгаз» · Bitrix24</div><h1>Диадок · документы и экономический архив</h1></div>
+      <div class="actions"><a class="btn btn-secondary link" href="./">← Рабочий стол</a><span id="statusBadge" class="badge">Проверка…</span></div>
     </header>
 
     <section id="configPanel" class="panel is-hidden">
-      <strong>Backend Диадока не настроен.</strong>
-      <p class="note">Секреты не хранятся на GitHub Pages. После развёртывания READ ONLY backend укажите его HTTPS URL в <code>diadoc-config.js</code>.</p>
+      <strong>Облачный backend Диадока не настроен.</strong>
+      <p class="note">На этой странице нет и не будет секретов в исходном коде браузера.</p>
+    </section>
+
+    <section id="setupPanel" class="panel is-hidden">
+      <strong>Первичная настройка приложения Диадока</strong>
+      <p class="note info-note">Введите <code>client_id</code> и <code>client_secret</code> из Кабинета интегратора. Значения передаются напрямую из Bitrix24 в облачный backend и сохраняются в Google Secret Manager. Страница их не сохраняет.</p>
+      <div class="row">
+        <label class="field wide"><span>client_id</span><input id="clientIdInput" type="text" autocomplete="off" spellcheck="false"></label>
+        <label class="field wide"><span>client_secret</span><input id="clientSecretInput" type="password" autocomplete="new-password" spellcheck="false"></label>
+        <button id="saveCredentialsBtn" class="btn btn-primary" type="button">Сохранить защищённо</button>
+      </div>
+      <p id="callbackInfo" class="note"></p>
     </section>
 
     <section id="authPanel" class="panel is-hidden">
-      <strong>Диадок ещё не авторизован.</strong>
-      <p class="note danger-note">Первичное подключение выполняется через OpenID Connect. После согласия Диадок выдаёт backend'у refresh-token для фонового чтения. Подписание документов этим модулем не реализовано.</p>
-      <button id="connectBtn" class="btn btn-primary" type="button">Подключить Диадок</button>
+      <strong>Нужно один раз авторизовать ООО «ПТГ» в Диадоке.</strong>
+      <p class="note info-note">Авторизация выполняется через OpenID Connect с <code>offline_access</code>. После подтверждения backend сможет обновлять access-token для фонового READ ONLY чтения. Подписание и отправка документов не реализованы.</p>
+      <button id="connectBtn" class="btn btn-primary" type="button">Авторизовать Диадок</button>
     </section>
 
     <section class="panel">
@@ -38,20 +43,15 @@
         <label class="field"><span>С</span><input id="fromInput" type="date" value="2023-01-01"></label>
         <label class="field"><span>По</span><input id="toInput" type="date"></label>
         <label class="field"><span>Направление</span><select id="directionInput"><option value="all">Все</option><option value="incoming">Входящие</option><option value="outgoing">Исходящие</option></select></label>
-        <label class="field" style="min-width:300px"><span>Поиск</span><input id="queryInput" type="search" placeholder="Контрагент, ИНН, номер, тип документа"></label>
-        <button id="loadBtn" class="btn btn-primary" type="button">Загрузить</button>
+        <label class="field wide"><span>Поиск</span><input id="queryInput" type="search" placeholder="Контрагент, ИНН, номер, тип документа"></label>
+        <button id="loadBtn" class="btn btn-primary" type="button" disabled>Загрузить</button>
       </div>
-      <p class="note">Период по умолчанию: 01.01.2023 — текущая дата. Оригинал скачивается только по нажатию.</p>
+      <p class="note">Рабочий период: 01.01.2023 — текущая дата. Оригинал скачивается только по явному нажатию.</p>
     </section>
 
     <section class="panel">
-      <div id="summary" class="muted">Нет данных.</div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Напр.</th><th>Дата</th><th>№</th><th>Контрагент</th><th>ИНН</th><th>Тип</th><th>Статус</th><th>Сумма</th><th></th></tr></thead>
-          <tbody id="rows"></tbody>
-        </table>
-      </div>
+      <div id="summary" class="muted">Ожидание подключения.</div>
+      <div class="table-wrap"><table><thead><tr><th>Напр.</th><th>Дата</th><th>№</th><th>Контрагент</th><th>ИНН</th><th>Тип</th><th>Статус</th><th>Сумма</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
       <div id="empty" class="empty">Документы не загружены.</div>
     </section>
   </main>
